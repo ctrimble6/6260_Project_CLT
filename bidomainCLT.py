@@ -1,25 +1,13 @@
 import numpy as np
 
-class IonModel:
-    def __init__(self, model_name="Default"):
-        self.model_name = model_name
+#import IonModel
 
-    def compute_ion_currents(self):
-        raise NotImplementedError("This method should be implemented by subclasses.")
-
-class BeelerReuter(IonModel):
-    def __init__(self):
-        super().__init__(model_name="BeelerReuter")
-
-    def compute_ion_currents(self):
-        # Implementation for Beeler-Reuter model
-        pass
 
 class BidomainSolver:
     def __init__(self, dimension=1, parallelization=False, ionModel='HH', time=1.0, timestep_size=0.01, shape=(100,), pacing=None, conductivity=1.0):
         self.dimension = dimension
         self.parallelization = parallelization
-        self.ionModel = ionModel if ionModel else IonModel()  # Default to generic ion model
+        #self.ionModel = ionModel if ionModel else IonModel() # IonModel class to be implemented
         self.time = time
         self.timestep_size = timestep_size
         self.shape = shape
@@ -27,23 +15,105 @@ class BidomainSolver:
         self.conductivity = conductivity
         self.grid_step = 0.01
 
-    def initialize_grid(self):
-        # Method to initialize the computational grid based on self.shape and self.dimension
-        if self.dimension == 1:
-            N = self.shape[0]/self.grid_step
-            self.grid = np.zeros((N, 2))
-        elif self.dimension == 2: # 2D grid, will expand on this later if time permits
-            N1, N2 = self.shape/self.grid_step
-            self.grid = np.zeros((N1, N2, 2))
-        pass
+## Crank-Nicolson initialization
+    def cn_init_1d(self,S_input,BC,het_input='homogenous'):
+        # Initialize the Crank-Nicolson method for a 1D problem
+        N = self.N
+
+        # Optional heterogeneity in the conductivity
+        if het_input == 'step':
+            S = np.ones(N)
+            S[int(N/2):] = 0.1
+        elif het_input == 'sine':
+            S = 1 + 0.5*np.sin(np.pi*np.linspace(0, self.L, N))
+        elif het_input == 'random':
+            S = S_input*np.random.rand(N)
+        elif het_input == 'homogenous':
+            S = S_input*np.ones(N)
+        else:
+            raise ValueError('Heterogeneity not supported')
+
+        alpha = S*self.dt/(2*self.dx**2)
+
+        # Matrix A
+        A = np.zeros((N,N))
+        for i in range(1,N-1):
+            A[i,i] = 1 + 2*alpha[i]
+            A[i,i-1] = -alpha[i]
+            A[i,i+1] = -alpha[i]
+
+        # Matrix B
+        B = np.zeros((N,self.N))
+        for i in range(1,N-1):
+            B[i,i] = 1 - 2*alpha[i]
+            B[i,i-1] = alpha[i]
+            B[i,i+1] = alpha[i]
+
+        # Boundary conditions
+        if BC == 'Dirichlet':
+            A[0,0] = 1
+            A[-1,-1] = 1
+            B[0,0] = 1
+            B[-1,-1] = 1
+        elif BC == 'Neumann':
+            A[0,0] = 1 + alpha[0]
+            A[-1,-1] = 1 + alpha[-1]
+            A[0,1] = -alpha[0]
+            A[-1,-2] = -alpha[-1]
+            B[0,0] = 1 - alpha[0]
+            B[-1,-1] = 1 - alpha[-1]
+            B[0,1] = alpha[0]
+            B[-1,-2] = alpha[-1]
+        else:
+            raise ValueError('Boundary condition not supported')
+        
+        self.A,self.B = A,B
+
+    def thomas_method(self, d):
+        # Check if the matrix is tridiagonal
+        if not np.all(self.A == np.diag(np.diag(self.A)) + 
+                      np.diag(np.diag(self.A, k=1), k=1) + 
+                      np.diag(np.diag(self.A, k=-1), k=-1)):
+            raise ValueError("Input matrix is not tridiagonal")
+        
+        n = len(self.A)
+        x = np.zeros(n)
+
+        matrix = self.A.copy() # Copy the matrix to avoid modifying the original
+        
+        # Perform Gaussian elimination
+        for i in range(1, n):
+            m = matrix[i][i-1] / matrix[i-1][i-1]
+            matrix[i] -= m * matrix[i-1]
+            d[i] -= m * d[i-1]
+        
+        # Perform backsubstitution
+        x[n-1] = d[n-1] / matrix[n-1][n-1]
+        for i in range(n-2, -1, -1):
+            x[i] = (d[i] - matrix[i][i+1] * x[i+1]) / matrix[i][i]
+        
+        del matrix
+
+        return x
+
+    def cn_solve(self,v_tm):
+        ## dv_tm/dt = S * d^2v_tm/dx^2 - ion_current(v_tm,)/C_m
+        ## v_tm(x,t+dt) = v_tm(x,t) + dt * (S * d^2v_tm/dx^2 - ion_current(v_tm,)/C_m)
+        ## A * v_tp = B * v_tm
+        ## A is a tri-diagonal matrix with 1 + 2*alpha on the diagonal and -alpha on the off-diagonals
+        ## B is a tri-diagonal matrix with 1 - 2*alpha on the diagonal and alpha on the off-diagonals
+
+        b = self.B @ v_tm
+        v_tp = self.thomas_method(b) # v_tp is the predicted solution at the next time step
+
+        return v_tp
 
     def apply_pacing(self):
-        # Method to apply external stimuli as defined by self.pacing
+        # This will eventually apply a pacing protocol
         pass
 
     def solve(self):
         # Main solver method implementing the Crank-Nicolson method
-        # This method will likely interact with most of the properties of the class
         pass
 
     def run(self):
@@ -51,6 +121,4 @@ class BidomainSolver:
         # Calls solve() method in a loop with time-stepping
         pass
 
-# Example of initializing the solver with a specific ion model and solving
-solver = BidomainSolver(dimension=1, ionModel=BeelerReuter(), time=10, shape=(100,))
-solver.run()
+
