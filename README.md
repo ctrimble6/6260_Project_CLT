@@ -4,6 +4,15 @@ Author: Casey Lee-Trimble
 ## Overview
 This repository contains the Bidomain Solver, a Python module under development being designed to solve the bidomain equations in cardiac dynamics. The solver employs the Crank-Nicolson method for numerical integration and is structured to be flexible and expandable. It supports simulations in 1D initially, with the architecture in place to extend to 2D and 3D. 
 
+- Main Bidomain Solver evolves the transmembrane potential and the internal potential of the cell
+- Beeler Reuter Model solves for the transmembrane ion currents accoring to Beeler Reuter (1977)
+
+## Progress
+Both the cell module and the bidomain Crank-Nicolson solver are functional.
+
+## Bugs
+No known bugs if inputs are correct. Doesn't mean there aren't any.
+
 ## Features
 - **Heterogeneous Conductivity**: Limited selection of conductivity profiles. Easy to implement more.
 - **Boundary Conditions**: Select BC's as an argument. Two currently supported, more if needed.
@@ -16,3 +25,5 @@ This repository contains the Bidomain Solver, a Python module under development 
 ### Requirements
 - Python 3.6 or higher
 - NumPy
+
+##
