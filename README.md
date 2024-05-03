@@ -8,10 +8,10 @@ This repository contains the Bidomain Solver, a Python module under development 
 - Beeler Reuter Model solves for the transmembrane ion currents accoring to Beeler Reuter (1977)
 
 ## Progress
-The Beeler Reuter module successfully creates a lookup table for the rate constants that solve for the ion channel gate parameters. The simulation seems to run fine, but poking it with a stimulus current does not have the intended effect.
+Both the cell module and the bidomain Crank-Nicolson solver are functional.
 
 ## Bugs
-The Beeler Reuter model runs, but does not give a physical result yet. Going to investigate the initialization and the handling of the gate update.
+No known bugs if inputs are correct. Doesn't mean there aren't any.
 
 ## Features
 - **Heterogeneous Conductivity**: Limited selection of conductivity profiles. Easy to implement more.
